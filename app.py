@@ -16,16 +16,33 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 
 engine = RAGEngine()
+engine_error: str | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await run_in_threadpool(engine.index)
+    # Indexing needs an embedding provider. If it is unavailable the app should
+    # still boot so the static pages render; only /chat will fail.
+    global engine_error
+    try:
+        await run_in_threadpool(engine.index)
+    except Exception as exc:  # noqa: BLE001
+        engine_error = str(exc)
+        print(f"WARNING: knowledge base not indexed at startup: {exc}")
     yield
 
 
 app = FastAPI(title="CustomerBot", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+@app.get("/health")
+async def health():
+    return {
+        "ok": True,
+        "indexed": bool(engine.collection and engine.collection.count() > 0),
+        "error": engine_error,
+    }
 
 
 def _page(name: str) -> HTMLResponse:

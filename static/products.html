@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Products — Melz Care</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f8f9fa;
+    padding: 80px 24px 24px;
+  }
+  .navbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(255,255,255,0.85); backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    padding: 0 24px; height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .navbar .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 700; font-size: 18px; color: #e91e63; }
+  .navbar .brand svg { width: 28px; height: 28px; }
+  .navbar .links { display: flex; align-items: center; gap: 6px; }
+  .navbar .links a { padding: 6px 14px; border-radius: 8px; font-size: 14px; text-decoration: none; color: #555; transition: all 0.2s; }
+  .navbar .links a:hover { background: #fce4ec; color: #e91e63; }
+  .navbar .links a.active { background: #e91e63; color: white; }
+  .cart-btn {
+    position:relative; background:none; border:none; cursor:pointer; font-size:20px; padding:6px 10px; border-radius:8px; transition:background 0.2s;
+  }
+  .cart-btn:hover { background:#fce4ec; }
+  .cart-badge {
+    position:absolute; top:-2px; right:-2px; background:#e91e63; color:white; font-size:10px; font-weight:700;
+    width:18px; height:18px; border-radius:50%; display:none; align-items:center; justify-content:center;
+  }
+  .header { max-width: 1100px; margin: 0 auto 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+  .header h1 { font-size: 28px; }
+  .stock-badge { font-size: 13px; color: #666; }
+  .categories { max-width: 1100px; margin: 0 auto 24px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .categories button { padding: 8px 20px; border-radius: 20px; border: 1px solid #ddd; background: white; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+  .categories button:hover { border-color: #e91e63; color: #e91e63; }
+  .categories button.active { background: #e91e63; color: white; border-color: #e91e63; }
+  .grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; }
+  .card { background: white; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: transform 0.2s; }
+  .card:hover { transform: translateY(-3px); }
+  .card img { width: 100%; height: 180px; object-fit: cover; }
+  .card .body { padding: 14px; }
+  .card .cat-tag { font-size: 11px; color: #e91e63; font-weight: 600; text-transform: uppercase; }
+  .card h3 { font-size: 15px; font-weight: 600; margin: 4px 0; }
+  .card .price { font-size: 18px; font-weight: 700; color: #e91e63; }
+  .card .actions { display: flex; gap: 8px; margin-top: 10px; }
+  .card .actions button {
+    flex:1; padding: 8px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.2s;
+  }
+  .card .actions .add { background: #e91e63; color: white; }
+  .card .actions .add:hover { opacity: 0.85; }
+  .card .actions .added { background: #34a853; color: white; }
+
+  /* Cart panel */
+  .cart-overlay { position: fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.3); z-index:200; display:none; }
+  .cart-panel {
+    position:fixed; top:0; right:0; bottom:0; width:380px; max-width:100vw; background:white; z-index:201;
+    display:flex; flex-direction:column; transform:translateX(100%); transition:transform 0.3s ease;
+  }
+  .cart-panel.open { transform:translateX(0); }
+  .cart-panel .head { display:flex; justify-content:space-between; align-items:center; padding:20px 24px; border-bottom:1px solid #eee; }
+  .cart-panel .head h2 { font-size:18px; }
+  .cart-panel .head button { background:none; border:none; font-size:22px; cursor:pointer; color:#999; }
+  .cart-panel .items { flex:1; overflow-y:auto; padding:16px 24px; }
+  .cart-item { display:flex; gap:12px; padding:12px 0; border-bottom:1px solid #f5f5f5; }
+  .cart-item img { width:60px; height:60px; border-radius:8px; object-fit:cover; }
+  .cart-item .info { flex:1; }
+  .cart-item .info .name { font-weight:600; font-size:14px; }
+  .cart-item .info .price { font-size:13px; color:#e91e63; }
+  .cart-item .qty { display:flex; align-items:center; gap:8px; margin-top:4px; }
+  .cart-item .qty button { width:26px; height:26px; border-radius:50%; border:1px solid #ddd; background:white; cursor:pointer; font-size:14px; }
+  .cart-item .qty span { font-size:14px; font-weight:600; min-width:20px; text-align:center; }
+  .cart-item .remove { background:none; border:none; color:#ccc; cursor:pointer; font-size:16px; align-self:center; }
+  .cart-item .remove:hover { color:#e91e63; }
+  .cart-panel .foot { padding:20px 24px; border-top:1px solid #eee; }
+  .cart-panel .foot .total { display:flex; justify-content:space-between; font-size:16px; font-weight:700; margin-bottom:12px; }
+  .cart-panel .foot .checkout {
+    width:100%; padding:12px; border:none; border-radius:10px; background:linear-gradient(135deg,#e91e63,#9c27b0);
+    color:white; font-size:15px; font-weight:600; cursor:pointer; transition:opacity 0.2s;
+  }
+  .cart-panel .foot .checkout:hover { opacity:0.9; }
+  .cart-empty { text-align:center; padding:40px 0; color:#999; }
+  .toast {
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    background:#333; color:white; padding:12px 24px; border-radius:10px;
+    font-size:14px; z-index:300; opacity:0; transition:opacity 0.3s;
+    pointer-events:none;
+  }
+  .toast.show { opacity:1; }
+  .footer { text-align:center;padding:24px;font-size:13px;color:#999;border-top:1px solid #e0e0e0;margin-top:24px;max-width:1100px;margin-left:auto;margin-right:auto}
+  .footer a { color:#e91e63; text-decoration:none; }
+</style>
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="brand">
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <path d="M50 18 C50 18 38 34 30 44 C22 54 22 64 30 70 C38 76 50 68 50 68 C50 68 62 76 70 70 C78 64 78 54 70 44 C62 34 50 18 50 18Z" fill="#e91e63"/>
+        <circle cx="50" cy="50" r="8" fill="white"/>
+        <path d="M48 46 L50 42 L52 46 L56 48 L52 50 L50 54 L48 50 L44 48Z" fill="#e91e63"/>
+      </svg>
+      Melz Care
+    </a>
+    <div class="links">
+      <a href="/">Home</a>
+      <a href="/products" class="active">Shop</a>
+      <a href="/payment">Pay</a>
+      <a href="/about">About</a>
+      <a href="/analytics">Analytics</a>
+      <a href="/chat">Support</a>
+      <a href="/returns">Returns</a>
+      <button class="cart-btn" onclick="toggleCart()">&#x1F6D2;<span class="cart-badge" id="cartBadge">0</span></button>
+    </div>
+  </nav>
+
+  <div class="header">
+    <div>
+      <h1>Products</h1>
+      <div class="stock-badge">All items limited to 20 in stock</div>
+    </div>
+  </div>
+  <div class="categories" id="categories"></div>
+  <div class="grid" id="grid"></div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="cart-overlay" id="cartOverlay" onclick="toggleCart()"></div>
+  <div class="cart-panel" id="cartPanel">
+    <div class="head">
+      <h2>Shopping Cart</h2>
+      <button onclick="toggleCart()">&times;</button>
+    </div>
+    <div class="items" id="cartItems"></div>
+    <div class="foot">
+      <div class="total"><span>Total</span><span id="cartTotal">$0.00</span></div>
+      <button class="checkout" onclick="checkout()">Checkout</button>
+    </div>
+  </div>
+
+  <div class="footer">
+    <a href="/">Home</a> &middot; <a href="/chat">Support</a> &middot; <a href="/returns">Returns</a> &middot; <a href="/payment">Pay</a> &middot; <a href="/about">About</a> &middot; <a href="/analytics">Analytics</a>
+    <br>&copy; 2026 Melz Care
+  </div>
+
+<script>
+const emojiMap = { cosmetics: '\u{1F484}', skincare: '\u{1F9F4}', pills: '\u{1F48A}', hair: '\u{1F487}', clothes: '\u{1F455}' };
+const categoryNames = { cosmetics: 'Cosmetics', skincare: 'Skincare', pills: 'Wellness', hair: 'Hair', clothes: 'Clothing' };
+const colorMap = { cosmetics: 'e91e63', skincare: '9c27b0', pills: '4caf50', hair: 'ff9800', clothes: '2196f3' };
+
+let allProducts = {};
+let currentCategory = 'all';
+let cart = JSON.parse(localStorage.getItem('melzCart') || '[]');
+
+function imgUrl(name, cat) {
+  return `https://picsum.photos/seed/${encodeURIComponent(name)}/400/300`;
+}
+
+function saveCart() {
+  localStorage.setItem('melzCart', JSON.stringify(cart));
+  updateCartUI();
+}
+
+function updateCartUI() {
+  const count = cart.reduce((s, i) => s + i.qty, 0);
+  const badge = document.getElementById('cartBadge');
+  badge.textContent = count;
+  badge.style.display = count > 0 ? 'flex' : 'none';
+  renderCartPanel();
+}
+
+function renderCartPanel() {
+  const el = document.getElementById('cartItems');
+  if (!cart.length) {
+    el.innerHTML = '<div class="cart-empty">Your cart is empty</div>';
+    document.querySelector('.cart-panel .foot').style.display = 'none';
+    return;
+  }
+  document.querySelector('.cart-panel .foot').style.display = 'block';
+  el.innerHTML = cart.map((item, i) => `
+    <div class="cart-item">
+      <img src="${imgUrl(item.name, item.cat)}" alt="${item.name}">
+      <div class="info">
+        <div class="name">${item.name}</div>
+        <div class="price">$${(item.price * item.qty).toFixed(2)}</div>
+        <div class="qty">
+          <button onclick="changeQty(${i}, -1)">-</button>
+          <span>${item.qty}</span>
+          <button onclick="changeQty(${i}, 1)">+</button>
+        </div>
+      </div>
+      <button class="remove" onclick="removeItem(${i})">&times;</button>
+    </div>
+  `).join('');
+  const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  document.getElementById('cartTotal').textContent = '$' + total.toFixed(2);
+}
+
+function changeQty(i, delta) {
+  cart[i].qty += delta;
+  if (cart[i].qty <= 0) cart.splice(i, 1);
+  saveCart();
+}
+
+function removeItem(i) {
+  cart.splice(i, 1);
+  saveCart();
+}
+
+function addToCart(name, price, cat) {
+  const existing = cart.find(i => i.name === name);
+  if (existing) {
+    existing.qty += 1;
+  } else {
+    cart.push({ name, price, cat, qty: 1 });
+  }
+  saveCart();
+  showToast(name + ' added to cart');
+}
+
+function toggleCart() {
+  document.getElementById('cartOverlay').style.display = document.getElementById('cartOverlay').style.display === 'block' ? 'none' : 'block';
+  document.getElementById('cartPanel').classList.toggle('open');
+  renderCartPanel();
+}
+
+function checkout() {
+  const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  localStorage.setItem('melzCart', JSON.stringify(cart));
+  window.location.href = '/payment?total=' + total.toFixed(2);
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+async function load() {
+  const resp = await fetch('/api/products');
+  allProducts = await resp.json();
+  renderCategories();
+  renderProducts('all');
+  updateCartUI();
+}
+
+function renderCategories() {
+  const el = document.getElementById('categories');
+  el.innerHTML = '<button class="active" data-cat="all" onclick="filter(\'all\', this)">All</button>' +
+    Object.keys(allProducts).map(k =>
+      `<button data-cat="${k}" onclick="filter('${k}', this)">${categoryNames[k]}</button>`
+    ).join('');
+}
+
+function filter(cat, btn) {
+  currentCategory = cat;
+  document.querySelectorAll('.categories button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderProducts(cat);
+}
+
+function renderProducts(cat) {
+  const el = document.getElementById('grid');
+  const items = cat === 'all'
+    ? Object.entries(allProducts).flatMap(([k, v]) => v.map(p => ({...p, cat: k})))
+    : allProducts[cat].map(p => ({...p, cat}));
+  if (!items.length) {
+    el.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:#999">No products found.</p>';
+    return;
+  }
+  el.innerHTML = items.map(p => {
+    const inCart = cart.find(i => i.name === p.name);
+    return `<div class="card">
+      <img src="${imgUrl(p.name, p.cat)}" alt="${p.name}" loading="lazy">
+      <div class="body">
+        <div class="cat-tag">${categoryNames[p.cat]}</div>
+        <h3>${p.name}</h3>
+        <div class="price">$${p.price.toFixed(2)}</div>
+        <div class="actions">
+          <button class="${inCart ? 'added' : 'add'}" onclick="addToCart('${p.name.replace(/'/g, "\\'")}', ${p.price}, '${p.cat}')">${inCart ? 'Added \u2713' : 'Add to Cart'}</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+load();
+</script>
+</body>
+</html>

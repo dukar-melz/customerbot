@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CustomerBot Analytics</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f0f2f5; padding: 80px 24px 24px;
+  }
+  .header {
+    margin-bottom: 24px;
+  }
+  .header h1 { font-size: 24px; }
+  .header a { color: #1a73e8; font-size: 14px; text-decoration: none; }
+  .header a:hover { text-decoration: underline; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .card h3 { font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+  .card .value { font-size: 32px; font-weight: 700; margin-top: 8px; color: #1a1a1a; }
+  .card .sub { font-size: 13px; color: #666; margin-top: 4px; }
+  .section { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 24px; }
+  .section h2 { font-size: 16px; margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #e0e0e0; color: #666; font-weight: 600; }
+  td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; }
+  .satisfaction-bar { height: 8px; border-radius: 4px; background: #e0e0e0; margin-top: 4px; overflow: hidden; }
+  .satisfaction-bar .fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+  .fill.green { background: #34a853; }
+  .fill.red { background: #ea4335; }
+  .tag { display: inline-block; background: #e8f0fe; color: #1a73e8; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin: 2px; }
+  .truncate { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .loading { text-align: center; padding: 40px; color: #666; }
+  .feedback-yes { color: #34a853; }
+  .feedback-no { color: #ea4335; }
+  .feedback-none { color: #999; }
+  .navbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(255,255,255,0.85); backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    padding: 0 24px; height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .navbar .brand {
+    display: flex; align-items: center; gap: 10px;
+    text-decoration: none; font-weight: 700; font-size: 18px;
+    color: #e91e63;
+  }
+  .navbar .brand svg { width: 28px; height: 28px; }
+  .navbar .links { display: flex; gap: 6px; }
+  .navbar .links a {
+    padding: 6px 14px; border-radius: 8px; font-size: 14px;
+    text-decoration: none; color: #555; transition: all 0.2s;
+  }
+  .navbar .links a:hover { background: #fce4ec; color: #e91e63; }
+  .navbar .links a.active { background: #e91e63; color: white; }
+</style>
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="brand">
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <path d="M50 18 C50 18 38 34 30 44 C22 54 22 64 30 70 C38 76 50 68 50 68 C50 68 62 76 70 70 C78 64 78 54 70 44 C62 34 50 18 50 18Z" fill="#e91e63"/>
+        <circle cx="50" cy="50" r="8" fill="white"/>
+        <path d="M48 46 L50 42 L52 46 L56 48 L52 50 L50 54 L48 50 L44 48Z" fill="#e91e63"/>
+      </svg>
+      Melz Care
+    </a>
+    <div class="links">
+      <a href="/">Home</a>
+      <a href="/products">Shop</a>
+      <a href="/payment">Pay</a>
+      <a href="/about">About</a>
+      <a href="/analytics" class="active">Analytics</a>
+      <a href="/chat">Support</a>
+      <a href="/returns">Returns</a>
+      <a href="/products" style="font-size:20px;padding:6px 10px">&#x1F6D2;</a>
+    </div>
+  </nav>
+<div class="header">
+  <h1>Analytics Dashboard</h1>
+</div>
+<div class="loading" id="loading">Loading analytics...</div>
+<div id="content" style="display:none">
+  <div class="cards">
+    <div class="card"><h3>Total Queries</h3><div class="value" id="totalQueries">0</div></div>
+    <div class="card"><h3>Satisfaction</h3><div class="value" id="satisfactionPct">0%</div><div class="sub" id="satisfactionDetail"></div><div class="satisfaction-bar"><div class="fill green" id="satisfactionBar" style="width:0%"></div></div></div>
+    <div class="card"><h3>Thumbs Up</h3><div class="value" id="thumbsUp" style="color:#34a853">0</div></div>
+    <div class="card"><h3>Thumbs Down</h3><div class="value" id="thumbsDown" style="color:#ea4335">0</div></div>
+  </div>
+
+  <div class="section">
+    <h2>Top Knowledge Sources</h2>
+    <div id="topSources"></div>
+  </div>
+
+  <div class="section">
+    <h2>Recent Queries</h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Time</th><th>Query</th><th>Response</th><th>Feedback</th></tr></thead>
+        <tbody id="logsTable"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+async function loadAnalytics() {
+  try {
+    const [stats, logs] = await Promise.all([
+      fetch('/api/analytics').then(r => r.json()),
+      fetch('/api/analytics/logs').then(r => r.json()),
+    ]);
+
+    document.getElementById('totalQueries').textContent = stats.total_queries;
+    document.getElementById('thumbsUp').textContent = stats.thumbs_up;
+    document.getElementById('thumbsDown').textContent = stats.thumbs_down;
+
+    const total = stats.thumbs_up + stats.thumbs_down;
+    const pct = total > 0 ? Math.round((stats.thumbs_up / total) * 100) : 0;
+    document.getElementById('satisfactionPct').textContent = pct + '%';
+    document.getElementById('satisfactionDetail').textContent = stats.thumbs_up + ' up / ' + stats.thumbs_down + ' down';
+    document.getElementById('satisfactionBar').style.width = pct + '%';
+
+    const sourcesEl = document.getElementById('topSources');
+    if (stats.top_sources.length === 0) {
+      sourcesEl.innerHTML = '<p style="color:#999">No data yet</p>';
+    } else {
+      sourcesEl.innerHTML = stats.top_sources.map(([source, count]) =>
+        `<span class="tag">${source} (${count})</span>`
+      ).join(' ');
+    }
+
+    const tbody = document.getElementById('logsTable');
+    if (logs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999">No queries yet</td></tr>';
+    } else {
+      tbody.innerHTML = logs.map(log => {
+        const fb = log.feedback === 1 ? '<span class="feedback-yes">Up</span>'
+                 : log.feedback === -1 ? '<span class="feedback-no">Down</span>'
+                 : '<span class="feedback-none">—</span>';
+        return `<tr>
+          <td style="white-space:nowrap">${new Date(log.timestamp).toLocaleString()}</td>
+          <td class="truncate">${escapeHtml(log.query)}</td>
+          <td class="truncate">${escapeHtml(log.response || '').slice(0, 120)}</td>
+          <td>${fb}</td>
+        </tr>`;
+      }).join('');
+    }
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+  } catch (err) {
+    document.getElementById('loading').textContent = 'Failed to load analytics. Is the server running?';
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+loadAnalytics();
+</script>
+</body>
+<div style="text-align:center;padding:24px;font-size:13px;color:#999;border-top:1px solid #e0e0e0;margin-top:24px">
+  <a href="/" style="color:#e91e63;text-decoration:none">Home</a>
+  &middot; <a href="/chat" style="color:#e91e63;text-decoration:none">Support</a>
+  &middot; <a href="/products" style="color:#e91e63;text-decoration:none">Shop</a>
+  &middot; <a href="/returns" style="color:#e91e63;text-decoration:none">Returns</a>
+  &middot; <a href="/payment" style="color:#e91e63;text-decoration:none">Pay</a>
+  &middot; <a href="/about" style="color:#e91e63;text-decoration:none">About</a>
+  <br>&copy; 2026 Melz Care
+</div>
+</body>
+</html>

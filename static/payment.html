@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payment — Melz Care</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, #fce4ec 0%, #f3e5f5 50%, #e8eaf6 100%);
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    padding: 80px 24px 24px;
+  }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .container { max-width: 500px; width: 100%; animation: fadeUp 0.6s ease-out; }
+  .navbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(255,255,255,0.85); backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    padding: 0 24px; height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .navbar .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 700; font-size: 18px; color: #e91e63; }
+  .navbar .brand svg { width: 28px; height: 28px; }
+  .navbar .links { display: flex; gap: 6px; }
+  .navbar .links a { padding: 6px 14px; border-radius: 8px; font-size: 14px; text-decoration: none; color: #555; transition: all 0.2s; }
+  .navbar .links a:hover { background: #fce4ec; color: #e91e63; }
+  .navbar .links a.active { background: #e91e63; color: white; }
+  .card { background: white; border-radius: 20px; padding: 40px; box-shadow: 0 8px 32px rgba(0,0,0,0.06); }
+  .card h1 { font-size: 28px; font-weight: 800; background: linear-gradient(135deg, #e91e63, #9c27b0); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 8px; text-align: center; }
+  .card .subtitle { text-align: center; font-size: 13px; color: #999; margin-bottom: 24px; }
+  .methods { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+  .method { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 2px solid #eee; border-radius: 12px; cursor: pointer; transition: all 0.2s; }
+  .method:hover { border-color: #e91e63; }
+  .method.selected { border-color: #e91e63; background: #fce4ec; }
+  .method .radio { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #ccc; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .method.selected .radio { border-color: #e91e63; }
+  .method.selected .radio::after { content: ''; width: 10px; height: 10px; border-radius: 50%; background: #e91e63; }
+  .method .icon { font-size: 22px; }
+  .method .name { font-weight: 600; font-size: 14px; }
+  .method .desc { font-size: 12px; color: #999; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 4px; }
+  .form-group input { width: 100%; padding: 11px 14px; border: 1px solid #ddd; border-radius: 10px; font-size: 14px; outline: none; transition: border-color 0.2s; }
+  .form-group input:focus { border-color: #e91e63; }
+  .form-group .error { font-size: 12px; color: #d32f2f; margin-top: 3px; display: none; }
+  .row { display: flex; gap: 12px; }
+  .row > * { flex: 1; }
+  .btn {
+    width: 100%; padding: 14px; border: none; border-radius: 12px;
+    background: linear-gradient(135deg, #e91e63, #9c27b0);
+    color: white; font-size: 16px; font-weight: 600; cursor: pointer; transition: opacity 0.2s;
+  }
+  .btn:hover { opacity: 0.9; } .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-loading { display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .btn-loading .spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; }
+  .secure { text-align: center; font-size: 12px; color: #999; margin-top: 14px; }
+  .footer { text-align: center; margin-top: 24px; font-size: 13px; color: #999; }
+  .footer a { color: #e91e63; text-decoration: none; }
+  .step { display: none; }
+  .step.active { display: block; }
+  .conf { text-align: center; padding: 20px 0; }
+  .conf .icon { font-size: 56px; margin-bottom: 12px; }
+  .conf h2 { font-size: 22px; margin-bottom: 8px; }
+  .conf p { font-size: 14px; color: #666; line-height: 1.6; }
+  .conf .ref { background: #f5f5f5; border-radius: 8px; padding: 8px; font-size: 13px; margin: 16px 0; font-family: monospace; }
+</style>
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="brand">
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <path d="M50 18 C50 18 38 34 30 44 C22 54 22 64 30 70 C38 76 50 68 50 68 C50 68 62 76 70 70 C78 64 78 54 70 44 C62 34 50 18 50 18Z" fill="#e91e63"/>
+        <circle cx="50" cy="50" r="8" fill="white"/>
+        <path d="M48 46 L50 42 L52 46 L56 48 L52 50 L50 54 L48 50 L44 48Z" fill="#e91e63"/>
+      </svg>
+      Melz Care
+    </a>
+    <div class="links">
+      <a href="/">Home</a>
+      <a href="/products">Shop</a>
+      <a href="/payment" class="active">Pay</a>
+      <a href="/about">About</a>
+      <a href="/analytics">Analytics</a>
+      <a href="/chat">Support</a>
+      <a href="/returns">Returns</a>
+      <button class="cart-btn" onclick="window.location.href='/products'" style="background:none;border:none;cursor:pointer;font-size:20px;padding:6px 10px;border-radius:8px">&#x1F6D2;</button>
+    </div>
+  </nav>
+  <div class="container">
+    <!-- Step 1: Payment Form -->
+    <div class="card step active" id="stepForm">
+      <h1>Checkout</h1>
+      <p class="subtitle">Complete your payment securely</p>
+      <div class="methods">
+        <div class="method selected" onclick="selectMethod(this, 'card')">
+          <div class="radio"></div>
+          <span class="icon">&#x1F3B4;</span>
+          <div><div class="name">Credit / Debit Card</div><div class="desc">Visa, Mastercard, Amex</div></div>
+        </div>
+        <div class="method" onclick="selectMethod(this, 'momo')">
+          <div class="radio"></div>
+          <span class="icon">&#x1F4F1;</span>
+          <div><div class="name">Mobile Money (MoMo)</div><div class="desc">MTN, Airtel, Vodafone Cash</div></div>
+        </div>
+        <div class="method" onclick="selectMethod(this, 'paypal')">
+          <div class="radio"></div>
+          <span class="icon">&#x1F4B0;</span>
+          <div><div class="name">PayPal</div><div class="desc">Pay with your PayPal account</div></div>
+        </div>
+      </div>
+      <div id="cardFields">
+        <div class="form-group"><label>Card Number</label><input type="text" placeholder="1234 5678 9012 3456" id="cardNum" maxlength="19"><div class="error" id="errCard">Enter a valid card number</div></div>
+        <div class="row">
+          <div class="form-group"><label>Expiry</label><input type="text" placeholder="MM/YY" id="expiry" maxlength="5"><div class="error" id="errExp">Invalid expiry</div></div>
+          <div class="form-group"><label>CVC</label><input type="text" placeholder="123" id="cvc" maxlength="4"><div class="error" id="errCvc">Invalid CVC</div></div>
+        </div>
+        <div class="form-group"><label>Name on Card</label><input type="text" placeholder="John Doe" id="cardName"><div class="error" id="errName">Enter cardholder name</div></div>
+      </div>
+      <div id="momoFields" style="display:none">
+        <div class="form-group"><label>Mobile Money Provider</label>
+          <select style="width:100%;padding:11px 14px;border:1px solid #ddd;border-radius:10px;font-size:14px;outline:none" id="momoProvider">
+            <option value="">Select provider...</option>
+            <option value="mtn">MTN Mobile Money</option>
+            <option value="airtel">Airtel Money</option>
+            <option value="vodafone">Vodafone Cash</option>
+            <option value="orange">Orange Money</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Phone Number</label><input type="tel" placeholder="+233 54 123 4567" id="momoPhone"><div class="error" id="errPhone">Enter a valid phone number</div></div>
+        <div class="form-group"><label>Full Name</label><input type="text" placeholder="John Doe" id="momoName"><div class="error" id="errMomoName">Enter your name</div></div>
+      </div>
+      <div id="paypalFields" style="display:none">
+        <p style="font-size:14px;color:#666;text-align:center;padding:16px 0">You'll be redirected to PayPal to complete your payment.</p>
+      </div>
+      <div class="form-group"><label>Email</label><input type="email" placeholder="you@example.com" id="email"><div class="error" id="errEmail">Enter a valid email</div></div>
+      <button class="btn" id="payBtn" onclick="startPayment()">Pay $<span id="payAmount">0.00</span></button>
+      <div class="secure">&#x1F512; Secured with 256-bit encryption</div>
+    </div>
+    <!-- Step 2: Processing -->
+    <div class="card step" id="stepProcessing" style="text-align:center;padding:60px 40px">
+      <div style="width:48px;height:48px;border:3px solid #fce4ec;border-top-color:#e91e63;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 20px"></div>
+      <h2 style="font-size:20px;margin-bottom:8px">Processing Payment...</h2>
+      <p style="font-size:14px;color:#666" id="processingText">Please wait while we process your transaction.</p>
+    </div>
+    <!-- Step 3: Confirmation -->
+    <div class="card step" id="stepConfirm">
+      <div class="conf">
+        <div class="icon">&#x2705;</div>
+        <h2>Payment Successful!</h2>
+        <p>Your payment has been processed and your order is confirmed.</p>
+        <div class="ref" id="refNum">REF: MC-2026-XXXXXX</div>
+        <p style="font-size:13px;color:#999">A confirmation email has been sent to <span id="confirmEmail" style="color:#e91e63">you@example.com</span></p>
+        <a href="/" style="display:inline-block;margin-top:20px;padding:12px 32px;border-radius:12px;background:linear-gradient(135deg,#e91e63,#9c27b0);color:white;text-decoration:none;font-weight:600;font-size:14px">Back to Home</a>
+      </div>
+    </div>
+    <div class="footer">
+      <a href="/">Home</a> &middot; <a href="/products">Shop</a> &middot; <a href="/about">About</a> &middot; <a href="/analytics">Analytics</a> &middot; <a href="/chat">Support</a> &middot; <a href="/returns">Returns</a>
+      <br>&copy; 2026 Melz Care
+    </div>
+  </div>
+<script>
+  let selectedMethod = 'card';
+  const refNum = 'MC-2026-' + String(Math.floor(100000 + Math.random() * 900000));
+  const params = new URLSearchParams(window.location.search);
+  const total = params.get('total') || '0.00';
+  document.getElementById('payAmount').textContent = total;
+
+  function selectMethod(el, method) {
+    document.querySelectorAll('.method').forEach(m => m.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedMethod = method;
+    document.getElementById('cardFields').style.display = method === 'card' ? 'block' : 'none';
+    document.getElementById('momoFields').style.display = method === 'momo' ? 'block' : 'none';
+    document.getElementById('paypalFields').style.display = method === 'paypal' ? 'block' : 'none';
+  }
+
+  function validate() {
+    if (selectedMethod === 'card') {
+      const card = document.getElementById('cardNum').value.replace(/\s/g, '');
+      if (card.length < 13) { showErr('errCard'); return false; } else hideErr('errCard');
+      if (!/^\d{2}\/\d{2}$/.test(document.getElementById('expiry').value)) { showErr('errExp'); return false; } else hideErr('errExp');
+      if (document.getElementById('cvc').value.length < 3) { showErr('errCvc'); return false; } else hideErr('errCvc');
+      if (!document.getElementById('cardName').value.trim()) { showErr('errName'); return false; } else hideErr('errName');
+    }
+    if (selectedMethod === 'momo') {
+      if (!document.getElementById('momoProvider').value) { alert('Please select a Mobile Money provider'); return false; }
+      if (document.getElementById('momoPhone').value.length < 8) { showErr('errPhone'); return false; } else hideErr('errPhone');
+      if (!document.getElementById('momoName').value.trim()) { showErr('errMomoName'); return false; } else hideErr('errMomoName');
+    }
+    if (!document.getElementById('email').value.includes('@')) { showErr('errEmail'); return false; } else hideErr('errEmail');
+    return true;
+  }
+
+  function showErr(id) { document.getElementById(id).style.display = 'block'; }
+  function hideErr(id) { document.getElementById(id).style.display = 'none'; }
+
+  function startPayment() {
+    if (!validate()) return;
+    document.getElementById('stepForm').classList.remove('active');
+    document.getElementById('stepProcessing').classList.add('active');
+    const texts = {
+      card: 'Contacting your bank...',
+      momo: 'Sending payment request to your phone...',
+      paypal: 'Redirecting to PayPal...'
+    };
+    document.getElementById('processingText').textContent = texts[selectedMethod] || 'Processing...';
+    setTimeout(() => {
+      document.getElementById('stepProcessing').classList.remove('active');
+      document.getElementById('stepConfirm').classList.add('active');
+      document.getElementById('refNum').textContent = 'REF: ' + refNum;
+      document.getElementById('confirmEmail').textContent = document.getElementById('email').value;
+    }, 2500);
+  }
+
+  document.getElementById('cardNum').addEventListener('input', function() {
+    this.value = this.value.replace(/\D/g, '').replace(/(.{4})/g, '$1 ').trim();
+  });
+  document.getElementById('expiry').addEventListener('input', function() {
+    this.value = this.value.replace(/\D/g, '').replace(/^(\d{2})(\d)/, '$1/$2').slice(0,5);
+  });
+  document.getElementById('cvc').addEventListener('input', function() {
+    this.value = this.value.replace(/\D/g, '').slice(0,4);
+  });
+</script>
+</body>
+</html>

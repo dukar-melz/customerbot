@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Returns & Refunds — Melz Care</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, #fce4ec 0%, #f3e5f5 50%, #e8eaf6 100%);
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 80px 24px 24px;
+  }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .container { max-width: 700px; width: 100%; animation: fadeUp 0.6s ease-out; }
+  .navbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(255,255,255,0.85); backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    padding: 0 24px; height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .navbar .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 700; font-size: 18px; color: #e91e63; }
+  .navbar .brand svg { width: 28px; height: 28px; }
+  .navbar .links { display: flex; gap: 6px; }
+  .navbar .links a { padding: 6px 14px; border-radius: 8px; font-size: 14px; text-decoration: none; color: #555; transition: all 0.2s; }
+  .navbar .links a:hover { background: #fce4ec; color: #e91e63; }
+  .navbar .links a.active { background: #e91e63; color: white; }
+  .card { background: white; border-radius: 20px; padding: 40px; box-shadow: 0 8px 32px rgba(0,0,0,0.06); }
+  .card h1 { font-size: 32px; font-weight: 800; background: linear-gradient(135deg, #e91e63, #9c27b0); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 24px; }
+  .card h2 { font-size: 18px; font-weight: 600; color: #e91e63; margin: 20px 0 8px; }
+  .card p, .card li { font-size: 14px; line-height: 1.8; color: #444; }
+  .card ul { padding-left: 20px; margin-bottom: 12px; }
+  .card li { margin-bottom: 4px; }
+  .card .highlight { background: #fce4ec; border-radius: 8px; padding: 12px 16px; margin: 12px 0; }
+  .footer { text-align: center; margin-top: 24px; font-size: 13px; color: #999; }
+  .footer a { color: #e91e63; text-decoration: none; }
+</style>
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="brand">
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <path d="M50 18 C50 18 38 34 30 44 C22 54 22 64 30 70 C38 76 50 68 50 68 C50 68 62 76 70 70 C78 64 78 54 70 44 C62 34 50 18 50 18Z" fill="#e91e63"/>
+        <circle cx="50" cy="50" r="8" fill="white"/>
+        <path d="M48 46 L50 42 L52 46 L56 48 L52 50 L50 54 L48 50 L44 48Z" fill="#e91e63"/>
+      </svg>
+      Melz Care
+    </a>
+    <div class="links">
+      <a href="/">Home</a>
+      <a href="/products">Shop</a>
+      <a href="/payment">Pay</a>
+      <a href="/about">About</a>
+      <a href="/analytics">Analytics</a>
+      <a href="/chat">Support</a>
+      <a href="/returns" class="active">Returns</a>
+      <a href="/products" style="font-size:20px;padding:6px 10px">&#x1F6D2;</a>
+    </div>
+  </nav>
+  <div class="container">
+    <div class="card">
+      <h1>Returns &amp; Refunds</h1>
+
+      <h2>Standard Returns</h2>
+      <ul>
+        <li>30-day return window from delivery date</li>
+        <li>Items must be unused and in original packaging</li>
+        <li>Original receipt or order confirmation required</li>
+        <li>Refund processed within 5&ndash;7 business days after we receive the item</li>
+        <li>Refund goes back to original payment method</li>
+      </ul>
+
+      <h2>How to Return</h2>
+      <ol>
+        <li>Contact our support team or chat with CustomerBot</li>
+        <li>You will receive a prepaid return shipping label via email</li>
+        <li>Pack the item securely with all accessories and original packaging</li>
+        <li>Drop off at any carrier location</li>
+        <li>Refund issued once item is received and inspected</li>
+      </ol>
+
+      <h2>Return Shipping Costs</h2>
+      <ul>
+        <li><strong>Free</strong> for defective or incorrect items</li>
+        <li>$5.99 restocking fee for change-of-mind returns</li>
+        <li>Customer responsible for return shipping on international orders</li>
+      </ul>
+
+      <h2>Non-Returnable Items</h2>
+      <ul>
+        <li>Gift cards</li>
+        <li>Digital products &amp; software downloads</li>
+        <li>Personal care items (earbuds, etc.) if seal is broken</li>
+        <li>Items marked "final sale"</li>
+      </ul>
+
+      <h2>Damaged / Defective Items</h2>
+      <div class="highlight">
+        <p>Report within 48 hours of delivery. We will send a <strong>free replacement</strong> or issue a <strong>full refund</strong> including shipping &mdash; no restocking fee.</p>
+      </div>
+
+      <h2>Warranty Claims</h2>
+      <ul>
+        <li>All products carry a manufacturer warranty (varies by product)</li>
+        <li>Within 30 days: contact us directly</li>
+        <li>After 30 days: contact the manufacturer</li>
+        <li>We can assist with the warranty process within the first year</li>
+      </ul>
+
+      <p style="margin-top:20px;font-size:13px;color:#999">Have questions? <a href="/chat" style="color:#e91e63">Chat with our bot</a> or contact support.</p>
+    </div>
+    <div class="footer">
+      <a href="/">Home</a> &middot; <a href="/chat">Support</a> &middot; <a href="/products">Shop</a> &middot; <a href="/payment">Pay</a> &middot; <a href="/about">About</a> &middot; <a href="/analytics">Analytics</a>
+      <br>&copy; 2026 Melz Care
+    </div>
+  </div>
+</body>
+</html>

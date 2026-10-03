@@ -7,9 +7,33 @@ from pathlib import Path
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-DB_PATH = Path(__file__).parent / "analytics.db"
+DB_PATH = Path(os.environ.get("ANALYTICS_DB_PATH", Path(__file__).parent / "analytics.db"))
 
 TABLE = "logs"
+
+
+def _sqlite_writable() -> bool:
+    """SQLite is a local-dev convenience only. Serverless filesystems are
+    read-only, so probing once here keeps chat working without Supabase."""
+    if _use_supabase():
+        return False
+    try:
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(DB_PATH, "a"):
+            pass
+        return True
+    except OSError:
+        return False
+
+
+_sqlite_ok: bool | None = None
+
+
+def _can_use_sqlite() -> bool:
+    global _sqlite_ok
+    if _sqlite_ok is None:
+        _sqlite_ok = _sqlite_writable()
+    return _sqlite_ok
 
 
 def _use_supabase() -> bool:
@@ -203,27 +227,67 @@ def _sq_get_recent(limit: int = 50) -> list[dict]:
 # --------------------------------------------------------------------------
 
 
-def log_query(session_id: str, query: str, response: str, sources: list[str]):
+def analytics_backend() -> str:
     if _use_supabase():
-        _pg_log_query(session_id, query, response, sources)
-    else:
-        _sq_log_query(session_id, query, response, sources)
+        return "supabase"
+    if _can_use_sqlite():
+        return "sqlite"
+    return "disabled"
+
+
+def _warn(op: str, exc: Exception):
+    print(f"WARNING: analytics.{op} failed: {type(exc).__name__}: {exc}")
+
+
+def log_query(session_id: str, query: str, response: str, sources: list[str]):
+    try:
+        if _use_supabase():
+            _pg_log_query(session_id, query, response, sources)
+        elif _can_use_sqlite():
+            _sq_log_query(session_id, query, response, sources)
+        else:
+            _warn("log_query", RuntimeError("no analytics backend configured"))
+    except Exception as exc:  # noqa: BLE001
+        _warn("log_query", exc)
 
 
 def set_feedback(log_id: str, feedback: int):
-    if _use_supabase():
-        _pg_set_feedback(log_id, feedback)
-    else:
-        _sq_set_feedback(log_id, feedback)
+    try:
+        if _use_supabase():
+            _pg_set_feedback(log_id, feedback)
+        elif _can_use_sqlite():
+            _sq_set_feedback(log_id, feedback)
+        else:
+            return {"ok": False, "error": "analytics backend unavailable"}
+    except Exception as exc:  # noqa: BLE001
+        _warn("set_feedback", exc)
+        return {"ok": False, "error": str(exc)}
+    return {"ok": True}
 
 
 def get_stats() -> dict:
-    if _use_supabase():
-        return _pg_get_stats()
-    return _sq_get_stats()
+    try:
+        if _use_supabase():
+            return _pg_get_stats()
+        if _can_use_sqlite():
+            return _sq_get_stats()
+    except Exception as exc:  # noqa: BLE001
+        _warn("get_stats", exc)
+    return {
+        "total_queries": 0,
+        "thumbs_up": 0,
+        "thumbs_down": 0,
+        "top_sources": [],
+        "backend": "unavailable",
+    }
 
 
 def get_recent(limit: int = 50) -> list[dict]:
-    if _use_supabase():
-        return _pg_get_recent(limit)
-    return _sq_get_recent(limit)
+    try:
+        if _use_supabase():
+            return _pg_get_recent(limit)
+        if _can_use_sqlite():
+            return _sq_get_recent(limit)
+    except Exception as exc:  # noqa: BLE001
+        _warn("get_recent", exc)
+    return []

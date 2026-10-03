@@ -1,6 +1,8 @@
 import os
 import glob
 import json
+import time
+import asyncio
 from pathlib import Path
 from typing import List
 
@@ -10,7 +12,25 @@ from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 OPENROUTER_BASE = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 EMBED_MODEL = os.environ.get("EMBED_MODEL", "openai/text-embedding-3-small")
-LLM_MODEL = os.environ.get("LLM_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
+
+# Free OpenRouter models share a rate-limited pool and individual ids get
+# retired, so chat walks a chain instead of pinning one model. Pin a single
+# model with LLM_MODEL when you want deterministic behaviour.
+_DEFAULT_LLM_CHAIN = [
+    "google/gemma-4-26b-a4b-it:free",
+    "liquid/lfm-2.5-2.6b:free",
+    "nvidia/nemotron-3.5-lightning:free",
+    "qwen/qwen3.8-27b:free",
+    "poolside/laguna-s-2.1:free",
+    "thinkingmachines/inkling:free",
+]
+LLM_MODEL = os.environ.get("LLM_MODEL", "")
+LLM_MODELS = [
+    m.strip()
+    for m in os.environ.get("LLM_MODELS", "").split(",")
+    if m.strip()
+] or ([LLM_MODEL] if LLM_MODEL else _DEFAULT_LLM_CHAIN)
+LLM_ATTEMPTS = int(os.environ.get("LLM_ATTEMPTS", "2"))
 
 EMBEDDING_PROVIDER = os.environ.get("EMBEDDING_PROVIDER", "openrouter")
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "openrouter")
@@ -25,24 +45,42 @@ KB_DIR = Path(__file__).parent / "kb"
 
 
 class OpenRouterEmbeddingFunction(EmbeddingFunction[Documents]):
+    EMBED_ATTEMPTS = int(os.environ.get("EMBED_ATTEMPTS", "4"))
+
     def __call__(self, input: Documents) -> Embeddings:
         import httpx
 
         if not OPENROUTER_API_KEY:
             raise RuntimeError("OPENROUTER_API_KEY is not set")
         texts = [t for t in input]
-        resp = httpx.post(
-            f"{OPENROUTER_BASE}/embeddings",
-            headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={"model": EMBED_MODEL, "input": texts},
-            timeout=60,
+
+        last_error: Exception | None = None
+        for attempt in range(self.EMBED_ATTEMPTS):
+            try:
+                resp = httpx.post(
+                    f"{OPENROUTER_BASE}/embeddings",
+                    headers={
+                        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"model": EMBED_MODEL, "input": texts},
+                    timeout=60,
+                )
+                resp.raise_for_status()
+                rows = sorted(
+                    resp.json()["data"], key=lambda d: d.get("index", 0)
+                )
+                return [row["embedding"] for row in rows]
+            except Exception as exc:  # noqa: BLE001
+                # Embedding calls are the one step that cannot be skipped: if they
+                # fail the bot answers with no context at all, so retry hard.
+                last_error = exc
+                time.sleep(1.5 * (attempt + 1))
+
+        raise RuntimeError(
+            f"embedding request failed after {self.EMBED_ATTEMPTS} attempts: "
+            f"{type(last_error).__name__}: {last_error}"
         )
-        resp.raise_for_status()
-        rows = sorted(resp.json()["data"], key=lambda d: d.get("index", 0))
-        return [row["embedding"] for row in rows]
 
     @staticmethod
     def name() -> str:
@@ -162,9 +200,18 @@ class RAGEngine:
         return results["documents"][0] if results["documents"] else []
 
     def query(self, query: str, n_results: int = 3) -> tuple[str, List[str]]:
-        context_docs = self.retrieve(query, n_results=n_results)
-        context = "\n\n".join(context_docs) if context_docs else ""
-        return context, context_docs
+        """Returns the joined context and the KB filenames it came from, so
+        analytics can attribute answers to a document rather than a chunk."""
+        collection = self._get_or_create_collection()
+        results = collection.query(query_texts=[query], n_results=n_results)
+        docs = results["documents"][0] if results.get("documents") else []
+        names: List[str] = []
+        for meta in (results.get("metadatas") or [[]])[0]:
+            name = (meta or {}).get("source", "unknown")
+            if name not in names:
+                names.append(name)
+        context = "\n\n".join(docs) if docs else ""
+        return context, names
 
     def query_llm(self, prompt: str) -> str:
         if LLM_PROVIDER == "ollama":
@@ -191,22 +238,43 @@ class RAGEngine:
 
         if not OPENROUTER_API_KEY:
             raise RuntimeError("OPENROUTER_API_KEY is not set")
-        resp = httpx.post(
-            f"{OPENROUTER_BASE}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": LLM_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.3,
-                "max_tokens": 1024,
-            },
-            timeout=90,
-        )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"].strip()
+
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+        }
+        errors: list[str] = []
+        for model in LLM_MODELS:
+            for attempt in range(LLM_ATTEMPTS):
+                resp = httpx.post(
+                    f"{OPENROUTER_BASE}/chat/completions",
+                    headers=headers,
+                    json={
+                        "model": model,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": 0.3,
+                        "max_tokens": 1024,
+                    },
+                    timeout=90,
+                )
+                if resp.status_code == 200:
+                    content = (
+                        resp.json().get("choices", [{}])[0]
+                        .get("message", {})
+                        .get("content")
+                    )
+                    if content and content.strip():
+                        return content.strip()
+                    errors.append(f"{model}: empty completion")
+                    break
+                # 400/401/403/404 mean this model is unusable for good; 429 and
+                # 5xx are transient, so those are worth another attempt.
+                errors.append(f"{model}: HTTP {resp.status_code}")
+                if resp.status_code == 429 or resp.status_code >= 500:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                break
+        raise RuntimeError("all OpenRouter models failed: " + "; ".join(errors))
 
     async def stream_llm(self, prompt: str):
         """Yields text deltas. Falls back to one big chunk if the provider
@@ -235,37 +303,66 @@ class RAGEngine:
         if not OPENROUTER_API_KEY:
             raise RuntimeError("OPENROUTER_API_KEY is not set")
 
-        payload = {
-            "model": LLM_MODEL,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.3,
-            "max_tokens": 1024,
-            "stream": True,
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
         }
-        async with httpx.AsyncClient(timeout=120) as client:
-            async with client.stream(
-                "POST",
-                f"{OPENROUTER_BASE}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            ) as resp:
-                resp.raise_for_status()
-                async for line in resp.aiter_lines():
-                    if not line or not line.startswith("data:"):
-                        continue
-                    data = line[5:].strip()
-                    if not data or data == "[DONE]":
-                        continue
-                    try:
-                        parsed = json.loads(data)
-                    except json.JSONDecodeError:
-                        continue
-                    choices = parsed.get("choices") or []
-                    if not choices:
-                        continue
-                    token = choices[0].get("delta", {}).get("content", "")
-                    if token:
-                        yield token
+
+        async def stream_from(model: str):
+            payload = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3,
+                "max_tokens": 1024,
+                "stream": True,
+            }
+            async with httpx.AsyncClient(timeout=120) as client:
+                async with client.stream(
+                    "POST",
+                    f"{OPENROUTER_BASE}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                ) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        if not line or not line.startswith("data:"):
+                            continue
+                        data = line[5:].strip()
+                        if not data or data == "[DONE]":
+                            continue
+                        try:
+                            parsed = json.loads(data)
+                        except json.JSONDecodeError:
+                            continue
+                        choices = parsed.get("choices") or []
+                        if not choices:
+                            continue
+                        token = choices[0].get("delta", {}).get("content", "")
+                        if token:
+                            yield token
+
+        # Walk the chain. A model only fails over while it has produced nothing,
+        # because partial output followed by an error would duplicate tokens.
+        errors: list[str] = []
+        for model in LLM_MODELS:
+            produced = False
+            try:
+                async for token in stream_from(model):
+                    produced = True
+                    yield token
+            except Exception as exc:  # noqa: BLE001
+                if produced:
+                    raise
+                errors.append(f"{model}: {type(exc).__name__}")
+                continue
+            if produced:
+                return
+            errors.append(f"{model}: empty stream")
+
+        # Every model refused to stream; take the non-streaming path, which
+        # retries the chain on its own.
+        text = await asyncio.to_thread(self._query_openrouter, prompt)
+        if text:
+            yield text
+        else:
+            raise RuntimeError("all OpenRouter models failed: " + "; ".join(errors))

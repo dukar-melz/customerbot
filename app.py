@@ -4,12 +4,18 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from rag_engine import RAGEngine
+from rag_engine import RAGEngine, LLM_PROVIDER, LLM_MODELS
 from bot import build_prompt
-from analytics import log_query, set_feedback, get_stats, get_recent
+from analytics import (
+    log_query,
+    set_feedback,
+    get_stats,
+    get_recent,
+    analytics_backend,
+)
 from products import PRODUCTS
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -42,6 +48,9 @@ async def health():
         "ok": True,
         "indexed": bool(engine.collection and engine.collection.count() > 0),
         "error": engine_error,
+        "llm_provider": LLM_PROVIDER,
+        "llm_models": LLM_MODELS,
+        "analytics": analytics_backend(),
     }
 
 
@@ -99,12 +108,30 @@ async def products_api():
     return PRODUCTS
 
 
+def _require_index():
+    """Refuse to answer rather than reply without the knowledge base, so a
+    failed cold-start index can't produce confident invented policy."""
+    if engine.collection and engine.collection.count() > 0:
+        return None
+    return JSONResponse(
+        status_code=503,
+        content={
+            "error": "knowledge base unavailable",
+            "detail": engine_error or "indexing did not complete",
+        },
+    )
+
+
 @app.post("/chat")
 async def chat(request: Request):
     body = await request.json()
     message = body["message"]
     history = body.get("history", [])
     session_id = body.get("session_id", "anon")
+
+    unavailable = _require_index()
+    if unavailable is not None:
+        return unavailable
 
     context, sources = await run_in_threadpool(engine.query, message)
     prompt = build_prompt(message, context, history=history)
@@ -120,6 +147,10 @@ async def chat_stream(request: Request):
     message = body["message"]
     history = body.get("history", [])
     session_id = body.get("session_id", "anon")
+
+    unavailable = _require_index()
+    if unavailable is not None:
+        return unavailable
 
     context, sources = await run_in_threadpool(engine.query, message)
     prompt = build_prompt(message, context, history=history)
@@ -142,5 +173,4 @@ async def chat_stream(request: Request):
 @app.post("/feedback")
 async def feedback(request: Request):
     body = await request.json()
-    await run_in_threadpool(set_feedback, body["log_id"], body["value"])
-    return {"ok": True}
+    return await run_in_threadpool(set_feedback, body["log_id"], body["value"])
